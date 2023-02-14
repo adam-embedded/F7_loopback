@@ -83,7 +83,7 @@ static SAI_HandleTypeDef         haudio_in_sai;
 void Audio_Init(uint32_t frequency, uint8_t volume)
 {
     if (volume > 100){
-        puts("Volume set too high\n");
+        puts("Volume set too high\nReverting to level of 80\n");
         volume = 80;
     }
 

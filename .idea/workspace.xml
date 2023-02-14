@@ -20,7 +20,10 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="80c8a737-eb1b-4993-89f2-3809db686adf" name="Changes" comment="" />
+    <list default="true" id="80c8a737-eb1b-4993-89f2-3809db686adf" name="Changes" comment="">
+      <change afterPath="$PROJECT_DIR$/.idea/vcs.xml" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Drivers/wm8994/BSP_Audio_Init.c" beforeDir="false" afterPath="$PROJECT_DIR$/Drivers/wm8994/BSP_Audio_Init.c" afterDir="false" />
+    </list>
     <option name="SHOW_DIALOG" value="false" />
     <option name="HIGHLIGHT_CONFLICTS" value="true" />
     <option name="HIGHLIGHT_NON_ACTIVE_CHANGELIST" value="false" />
@@ -39,6 +42,7 @@
     <option name="minorVersion" value="3.2" />
   </component>
   <component name="ProjectId" id="2LZZln3WoA3bBZAVHP5HKswk3XT" />
+  <component name="ProjectLevelVcsManager" settingsEditedManually="true" />
   <component name="ProjectViewState">
     <option name="hideEmptyMiddlePackages" value="true" />
     <option name="showLibraryContents" value="true" />
@@ -48,6 +52,7 @@
     "RunOnceActivity.OpenProjectViewOnStart": "true",
     "RunOnceActivity.ShowReadmeOnStart": "true",
     "RunOnceActivity.cidr.known.project.marker": "true",
+    "SHARE_PROJECT_CONFIGURATION_FILES": "true",
     "WebServerToolWindowFactoryState": "false",
     "cf.first.check.clang-format": "false",
     "cidr.known.project.marker": "true",
@@ -93,7 +98,7 @@
       <option name="presentableId" value="Default" />
       <updated>1676080718974</updated>
       <workItem from="1676080749713" duration="2113000" />
-      <workItem from="1676323225345" duration="12754000" />
+      <workItem from="1676323225345" duration="13492000" />
     </task>
     <servers />
   </component>
