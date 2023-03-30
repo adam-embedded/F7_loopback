@@ -154,11 +154,13 @@ void envelope(int16_t* S, float32_t *m_out){
         }
         E = E / Par.Nx;
 
-        /* Output (modulator) */
+        printf("PAR.NS: %lu\n", Par.Ns);
+        printf("iter_m: %d\n", iter_m);
 
+        /* Output (modulator) */
+        //TODO - error here, there is no met criterion for submitting the output
         if ( iter_m <= nim && (iter == 0 || (E <= Etol && nim == 1 && 0 == Par.Ni)) )
         {
-            puts("in output array");
             //m_out(1+(iter_m-1)*ns:iter_m*ns) = m(abs(ix));
 
             uint32_t i_aux = (iter_m-1)*(Par.Ns);

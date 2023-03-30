@@ -20,7 +20,7 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="80c8a737-eb1b-4993-89f2-3809db686adf" name="Changes" comment="major changes">
+    <list default="true" id="80c8a737-eb1b-4993-89f2-3809db686adf" name="Changes" comment="debugging issues">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Core/Src/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/Core/Src/main.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Core/envelope/src/envelope.c" beforeDir="false" afterPath="$PROJECT_DIR$/Core/envelope/src/envelope.c" afterDir="false" />
@@ -117,7 +117,7 @@
       <workItem from="1677202578702" duration="26000" />
       <workItem from="1677247601575" duration="3614000" />
       <workItem from="1679320885381" duration="114000" />
-      <workItem from="1679962445983" duration="40860000" />
+      <workItem from="1679962445983" duration="41326000" />
     </task>
     <task id="LOCAL-00001" summary="added warning for volume level.">
       <created>1676336869031</created>
@@ -140,7 +140,14 @@
       <option name="project" value="LOCAL" />
       <updated>1680142752025</updated>
     </task>
-    <option name="localTasksCounter" value="4" />
+    <task id="LOCAL-00004" summary="debugging issues">
+      <created>1680143118268</created>
+      <option name="number" value="00004" />
+      <option name="presentableId" value="LOCAL-00004" />
+      <option name="project" value="LOCAL" />
+      <updated>1680143118268</updated>
+    </task>
+    <option name="localTasksCounter" value="5" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -150,6 +157,7 @@
     <MESSAGE value="added warning for volume level." />
     <MESSAGE value="workspace" />
     <MESSAGE value="major changes" />
-    <option name="LAST_COMMIT_MESSAGE" value="major changes" />
+    <MESSAGE value="debugging issues" />
+    <option name="LAST_COMMIT_MESSAGE" value="debugging issues" />
   </component>
 </project>
