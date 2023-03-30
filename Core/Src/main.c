@@ -28,17 +28,45 @@
 #include <stdlib.h>
 #include "retarget.h"
 #include "wm8994.h"
+#include "envelope.h"
+#include "arm_math.h"
+
+// import filters
+#include "highPass_coef_6000Hz.h"
+#include "lowPass_coef_2000Hz.h"
 
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-
+typedef struct {
+    uint32_t    buff_pos;
+    uint8_t     start_flag;
+    uint8_t     init;
+    uint8_t     YesNo;
+}Process;
 
 /* USER CODE END PTD */
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
+
+// Envelope settings
+#define THRESHOLD 0.007
+#define MAX_AUDIO_SAMPLE_DUR 5 // in seconds
+#define FRAME_LENGTH  (SAMPLE_RATE*MAX_AUDIO_SAMPLE_DUR/(BUFFER_SIZE/2))
+#define PROCESS_BUFFER_SIZE ROUND_UP((FRAME_LENGTH*(BUFFER_SIZE/2)), 2)
+
+//Yes No settings
+#define CUTOFF 0.0032
+#define YESMAX 1.368
+#define NOMIN 0.000184
+
+//#define XSTR(x) STR(x)
+//#define STR(x) #x
+
+//#pragma message "Value of process buffer: " XSTR(PROCESS_BUFFER_SIZE)
+
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -55,6 +83,8 @@
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
 /* USER CODE BEGIN PFP */
+void ProcessBuffer(int16_t*, Process*);
+uint8_t YesNo(int16_t* );
 
 /* USER CODE END PFP */
 
@@ -115,7 +145,16 @@ int main(void) {
     printf("Program Started!--------------------\n");
 
     //Initialise Audio -  Frequency selection must be defined by the wm9884 driver
-    Audio_Init(AUDIO_FREQUENCY_48K, 85);
+    Audio_Init(SAMPLE_RATE, 85);
+
+    Process process = {
+            .init = 0,
+            .start_flag = 0,
+            .buff_pos = 0,
+            .YesNo = 2,
+    };
+
+    envelope_alloc();
 
     /* USER CODE END 2 */
 
@@ -125,22 +164,37 @@ int main(void) {
         /* USER CODE END WHILE */
 
         /* USER CODE BEGIN 3 */
+
+        // Update status message
+//        if (process.init == 1 && process.start_flag == 0){
+//            puts("Signal Received");
+//            process.start_flag = 1;
+//        } else if (process.init == 0 && process.start_flag == 1){
+//            puts("signal sampling finished");
+//            printf("command received: %d",process.YesNo);
+//            process.start_flag = 0;
+//        }
+
         switch (bufferStatus) {
             case BUFFER_STATUS_LOWER_HALF_FULL: {
                 RX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
 
                 //do processing here
-                //printf("%d",recordBuffer_R[1]);
+                printf("%d",recordBuffer_L[1]);
+                puts("first Half");
+                ProcessBuffer(&recordBuffer_L[0], &process);
 
-                TX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
+                //TX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
                 break;
             }
             case BUFFER_STATUS_UPPER_HALF_FULL: {
                 RX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
 
                 //do processing here
+                puts("second Half");
+                ProcessBuffer(&recordBuffer_L[0], &process);
 
-                TX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
+                //TX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
                 break;
             }
         }
@@ -200,8 +254,97 @@ void SystemClock_Config(void) {
 
 /* USER CODE BEGIN 4 */
 
-//These functions should be included as DMA callback
+static int16_t audioProcessBuffer[PROCESS_BUFFER_SIZE];
 
+// Main function for processing the buffer
+void ProcessBuffer(int16_t* S, Process *P){
+    float32_t tmp_m[BUFFER_SIZE/2];
+    envelope(S,&tmp_m[0]);
+    if (P->buff_pos > (PROCESS_BUFFER_SIZE)) {
+        puts("Buffer overrun");
+        return;
+    }
+    if (P->init == 0) {
+        for (int i = 0; i < (BUFFER_SIZE / 2); i++) {
+            printf("%f\n",tmp_m[i]);
+            if (tmp_m[i] > THRESHOLD) {
+                P->init = 1;
+                puts("start");
+                Error_Handler();
+                break;
+            }
+        }
+        for (int i=0; i < (BUFFER_SIZE/2);i++){
+            audioProcessBuffer[P->buff_pos] = S[i];
+            P->buff_pos++;
+        }
+    } else if (P->init == 1){
+        puts("end");
+        for (int i = 0; i < (BUFFER_SIZE / 2); i++) {
+            if (tmp_m[i] < THRESHOLD) {
+                //copy final part of buffer
+                for (int d=0; d < (BUFFER_SIZE/2);d++){
+                    audioProcessBuffer[P->buff_pos] = S[d];
+                    P->buff_pos++;
+                }
+                P->buff_pos = 0;
+                break;
+            }
+        }
+        // Check if yes or no, write to struct
+        P->YesNo = YesNo(audioProcessBuffer);
+        printf("signal status: %d\n", P->YesNo);
+        return;
+
+    } else if(P->init == 1){ // Needs changing, already checking for init == 1 above. try and incorporate in same condition.
+        puts("middle");
+        for (int i=0; i < (BUFFER_SIZE/2);i++){
+            audioProcessBuffer[P->buff_pos] = S[i];
+            P->buff_pos++;
+        }
+    }
+}
+
+uint8_t YesNo(int16_t* buffer){
+    //Create buffer for temporary float
+    float32_t tmpBuffer[BUFFER_SIZE/2];
+    // copy data to float buffer
+    for (int i =0;i<(BUFFER_SIZE/2);i++){
+        tmpBuffer[i] = (float32_t)buffer[i];
+    }
+    //Create filter buffer
+    float32_t filter_buffer[BUFFER_SIZE/2];
+
+
+    //HP filter the signal
+    arm_biquad_cascade_df2T_f32(&highPass,tmpBuffer,filter_buffer,(BUFFER_SIZE/2));
+    float32_t HP = 0;
+    for (int i=0;i<(BUFFER_SIZE/2);i++){
+        HP = (filter_buffer[i] * filter_buffer[i]) + HP;
+    }
+    memset(filter_buffer, 0, sizeof(float32_t) * (BUFFER_SIZE / 2));
+
+    // LP filter the signal
+    arm_biquad_cascade_df2T_f32(&lowPass,tmpBuffer,filter_buffer,(BUFFER_SIZE/2));
+    float32_t LP = 0;
+    for (int i=0;i<(BUFFER_SIZE/2);i++){
+        LP = (filter_buffer[i] * filter_buffer[i]) + LP;
+    }
+
+    //calculate ratio
+    float32_t ratio = HP/LP;
+
+    if (ratio >= CUTOFF){
+        if (ratio <= YESMAX) return 1; // return yes
+        else return 2; // return error
+    } else {
+        if (ratio >= NOMIN) return 0; //return no
+        else return 2; //return error
+    }
+}
+
+
+//These functions must be included as DMA callback
 void AUDIO_IN_HalfTransfer_CallBack(void) {
     //printf("AUDIO IN HALF");
     bufferStatus = BUFFER_STATUS_LOWER_HALF_FULL;
@@ -227,6 +370,7 @@ void AUDIO_OUT_Error_CallBack(void) {
 void Error_Handler(void) {
     /* USER CODE BEGIN Error_Handler_Debug */
     /* User can add his own implementation to report the HAL error return state */
+    puts("entered error state");
     __disable_irq();
     while (1) {
     }
