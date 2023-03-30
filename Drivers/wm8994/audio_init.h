@@ -15,7 +15,8 @@
 
 enum {
     BUFFER_STATUS_LOWER_HALF_FULL,
-    BUFFER_STATUS_UPPER_HALF_FULL
+    BUFFER_STATUS_UPPER_HALF_FULL,
+    BUFFER_STATUS_IDLE
 };
 typedef uint32_t BufferStatusMessage_t ;
 

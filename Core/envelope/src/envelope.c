@@ -31,7 +31,7 @@ typedef struct {
 static arm_rfft_fast_instance_f32 J;
 
 void envelope_alloc(){
-    arm_rfft_fast_init_f32(&J, BUFFER_SIZE);
+    arm_rfft_fast_init_f32(&J, BUFFER_SIZE/2);
 }
 
 void envelope(int16_t* S, float32_t *m_out){
@@ -66,7 +66,7 @@ void envelope(int16_t* S, float32_t *m_out){
 
     for (int i = 0; i < SAMPLES; i++){ //Scaled absolute signal
         s_abs[i] = s_abs[i] / max_s;
-        printf("%f, ",s_abs[i]);
+        //printf("%f, ",s_abs[i]);
     }
 
     uint16_t fL = 1 + (uint16_t) ceil(Par.Fc / Par.Fs / Par.Nx);
@@ -123,9 +123,9 @@ void envelope(int16_t* S, float32_t *m_out){
         float32_t a_result[SAMPLES*2];
         memcpy(a,m, sizeof(m));
 
-        for (int i =0; i < SAMPLES; i++){
+        //for (int i =0; i < SAMPLES; i++){
             //printf("%f",a[i]);
-        }
+        //}
 
 
         puts("before forward fft");
@@ -138,7 +138,7 @@ void envelope(int16_t* S, float32_t *m_out){
         a_result[(i_cutoff[0]*2)] = 0;
 
         // Reverse FFT
-        arm_cfft_f32(&arm_cfft_sR_f32_len512, a_result, 1, 1);
+        arm_cfft_f32(&arm_cfft_sR_f32_len2048, a_result, 1, 1);
 
         arm_cmplx_mag_f32(a_result, a, SAMPLES);
 
@@ -173,7 +173,7 @@ void envelope(int16_t* S, float32_t *m_out){
 
     }
     puts("after While");
-
+    iter = 0;
 
 
 }

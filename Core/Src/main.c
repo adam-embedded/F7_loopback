@@ -24,6 +24,7 @@
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "stdio.h"
+#include "stdbool.h"
 #include "audio_init.h"
 #include <stdlib.h>
 #include "retarget.h"
@@ -42,8 +43,9 @@
 typedef struct {
     uint32_t    buff_pos;
     uint8_t     start_flag;
-    uint8_t     init;
+    bool        init;
     uint8_t     YesNo;
+    uint8_t     work;
 }Process;
 
 /* USER CODE END PTD */
@@ -152,6 +154,7 @@ int main(void) {
             .start_flag = 0,
             .buff_pos = 0,
             .YesNo = 2,
+            .work = 0,
     };
 
     envelope_alloc();
@@ -180,23 +183,27 @@ int main(void) {
                 RX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
 
                 //do processing here
-                printf("%d",recordBuffer_L[1]);
-                puts("first Half");
+                //printf("%d",recordBuffer_L[1]);
+                puts("\nfirst Half");
                 ProcessBuffer(&recordBuffer_L[0], &process);
 
-                //TX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
+                TX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
+                bufferStatus = BUFFER_STATUS_IDLE;
                 break;
             }
             case BUFFER_STATUS_UPPER_HALF_FULL: {
                 RX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
 
                 //do processing here
-                puts("second Half");
+                puts("\nsecond Half");
                 ProcessBuffer(&recordBuffer_L[0], &process);
 
-                //TX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
+                TX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
+                bufferStatus = BUFFER_STATUS_IDLE;
                 break;
             }
+            default:
+                break;
         }
     }
     /* USER CODE END 3 */
@@ -255,32 +262,39 @@ void SystemClock_Config(void) {
 /* USER CODE BEGIN 4 */
 
 static int16_t audioProcessBuffer[PROCESS_BUFFER_SIZE];
+static float32_t tmp_m[BUFFER_SIZE/2] = {0};
 
 // Main function for processing the buffer
 void ProcessBuffer(int16_t* S, Process *P){
     // allocate temporary results buffer, make sure to fill buffer with zeros.
-    float32_t tmp_m[BUFFER_SIZE/2] = {0};
-    envelope(S,tmp_m);
-    if (P->buff_pos > (PROCESS_BUFFER_SIZE)) {
-        puts("Buffer overrun");
-        return;
-    }
-    if (P->init == 0) {
-        for (int i = 0; i < (BUFFER_SIZE / 2); i++) {
-            printf("%f\n",tmp_m[i]);
-            if (tmp_m[i] > THRESHOLD) {
-                P->init = 1;
-                puts("start");
-                Error_Handler();
-                break;
+
+    //envelope(S,tmp_m);
+//    if (P->buff_pos > (PROCESS_BUFFER_SIZE)) {
+//        puts("Buffer overrun");
+//        P->buff_pos = 0;
+//        return;
+//    }
+    if (!P->init) {
+        puts("in zero");
+        if (tmp_m[0] != 0) {
+
+            for (int i = 0; i < (BUFFER_SIZE / 2); i++) {
+                //printf("%f\n",tmp_m[i]);
+                if (tmp_m[i] > THRESHOLD) {
+                    P->init = 1;
+                    puts("start");
+                    Error_Handler();
+                    for (int d = 0; d < (BUFFER_SIZE / 2); d++) {
+                        audioProcessBuffer[P->buff_pos] = S[d];
+                        P->buff_pos++;
+                    }
+                    break;
+                }
             }
         }
-        for (int i=0; i < (BUFFER_SIZE/2);i++){
-            audioProcessBuffer[P->buff_pos] = S[i];
-            P->buff_pos++;
-        }
-    } else if (P->init == 1){
-        puts("end");
+    }
+    else {//if(P->init){
+        //puts("end");
         for (int i = 0; i < (BUFFER_SIZE / 2); i++) {
             if (tmp_m[i] < THRESHOLD) {
                 //copy final part of buffer
@@ -289,21 +303,26 @@ void ProcessBuffer(int16_t* S, Process *P){
                     P->buff_pos++;
                 }
                 P->buff_pos = 0;
+                P->work = 1;
                 break;
             }
-        }
-        // Check if yes or no, write to struct
-        P->YesNo = YesNo(audioProcessBuffer);
-        printf("signal status: %d\n", P->YesNo);
-        return;
-
-    } else if(P->init == 1){ // Needs changing, already checking for init == 1 above. try and incorporate in same condition.
-        puts("middle");
-        for (int i=0; i < (BUFFER_SIZE/2);i++){
             audioProcessBuffer[P->buff_pos] = S[i];
             P->buff_pos++;
         }
+        if (P->work == 1) {
+            // Check if yes or no, write to struct
+            P->YesNo = YesNo(audioProcessBuffer);
+            printf("signal status: %d\n", P->YesNo);
+            return;
+        }
     }
+//    else if(P->init == 1){ // Needs changing, already checking for init == 1 above. try and incorporate in same condition.
+//        //puts("middle");
+//        for (int i=0; i < (BUFFER_SIZE/2);i++){
+//            audioProcessBuffer[P->buff_pos] = S[i];
+//            P->buff_pos++;
+//        }
+//    }
 }
 
 uint8_t YesNo(int16_t* buffer){
