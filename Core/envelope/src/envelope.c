@@ -116,6 +116,7 @@ void envelope(int16_t* S, float32_t *m_out){
 
     puts("before while");
     while (E > Etol && iter < Par.Ni){
+        puts("entered while");
         iter++;
 
         float32_t a[SAMPLES];
@@ -157,6 +158,7 @@ void envelope(int16_t* S, float32_t *m_out){
 
         if ( iter_m <= nim && (iter == 0 || (E <= Etol && nim == 1 && 0 == Par.Ni)) )
         {
+            puts("in output array");
             //m_out(1+(iter_m-1)*ns:iter_m*ns) = m(abs(ix));
 
             uint32_t i_aux = (iter_m-1)*(Par.Ns);

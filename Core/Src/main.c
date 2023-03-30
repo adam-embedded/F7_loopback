@@ -258,8 +258,8 @@ static int16_t audioProcessBuffer[PROCESS_BUFFER_SIZE];
 
 // Main function for processing the buffer
 void ProcessBuffer(int16_t* S, Process *P){
-    float32_t tmp_m[BUFFER_SIZE/2];
-    envelope(S,&tmp_m[0]);
+    float32_t tmp_m[BUFFER_SIZE/2] = {0};
+    envelope(S,tmp_m);
     if (P->buff_pos > (PROCESS_BUFFER_SIZE)) {
         puts("Buffer overrun");
         return;
