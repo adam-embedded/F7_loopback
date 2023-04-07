@@ -1428,6 +1428,67 @@ HAL_StatusTypeDef HAL_SAI_Transmit_DMA(SAI_HandleTypeDef *hsai, uint8_t *pData, 
   }
 }
 
+HAL_StatusTypeDef HAL_SAI_Transmit_DMA_DB(SAI_HandleTypeDef *hsai, uint8_t *pData, uint16_t Size)
+{
+  if((pData == NULL) || (Size == 0))
+  {
+    return  HAL_ERROR;
+  }
+
+  if(hsai->State == HAL_SAI_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hsai);
+
+    hsai->pBuffPtr = pData;
+    hsai->XferSize = Size;
+    hsai->XferCount = Size;
+    hsai->ErrorCode = HAL_SAI_ERROR_NONE;
+    hsai->State = HAL_SAI_STATE_BUSY_TX;
+
+    /* Set the SAI Tx DMA Half transfer complete callback */
+    hsai->hdmatx->XferHalfCpltCallback = SAI_DMATxHalfCplt;
+
+    /* Set the SAI TxDMA transfer complete callback */
+    hsai->hdmatx->XferCpltCallback = SAI_DMATxCplt;
+
+    /* Set the DMA error callback */
+    hsai->hdmatx->XferErrorCallback = SAI_DMAError;
+
+    /* Set the DMA Tx abort callback */
+    hsai->hdmatx->XferAbortCallback = NULL;
+
+    /* Enable the Tx DMA Stream */
+    if(HAL_DMA_Start_IT(hsai->hdmatx, (uint32_t)hsai->pBuffPtr, (uint32_t)&hsai->Instance->DR, hsai->XferSize) != HAL_OK)
+    {
+      __HAL_UNLOCK(hsai);
+      return  HAL_ERROR;
+    }
+
+    /* Check if the SAI is already enabled */
+    if((hsai->Instance->CR1 & SAI_xCR1_SAIEN) == RESET)
+    {
+      /* Enable SAI peripheral */
+      __HAL_SAI_ENABLE(hsai);
+    }
+
+    /* Enable the interrupts for error handling */
+    __HAL_SAI_ENABLE_IT(hsai, SAI_InterruptFlag(hsai, SAI_MODE_DMA));
+
+    /* Enable SAI Tx DMA Request */
+    hsai->Instance->CR1 |= SAI_xCR1_DMAEN;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsai);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}
+
 /**
   * @brief  Receive an amount of data in non-blocking mode with DMA.
   * @param  hsai pointer to a SAI_HandleTypeDef structure that contains
@@ -1476,6 +1537,69 @@ HAL_StatusTypeDef HAL_SAI_Receive_DMA(SAI_HandleTypeDef *hsai, uint8_t *pData, u
 
     /* Check if the SAI is already enabled */
     if((hsai->Instance->CR1 & SAI_xCR1_SAIEN) == RESET)
+    {
+      /* Enable SAI peripheral */
+      __HAL_SAI_ENABLE(hsai);
+    }
+
+    /* Enable the interrupts for error handling */
+    __HAL_SAI_ENABLE_IT(hsai, SAI_InterruptFlag(hsai, SAI_MODE_DMA));
+
+    /* Enable SAI Rx DMA Request */
+    hsai->Instance->CR1 |= SAI_xCR1_DMAEN;
+
+    /* Process Unlocked */
+    __HAL_UNLOCK(hsai);
+
+    return HAL_OK;
+  }
+  else
+  {
+    return HAL_BUSY;
+  }
+}
+// Double buffer DMA receive
+HAL_StatusTypeDef HAL_SAI_Receive_DMA_DB(SAI_HandleTypeDef *hsai, uint8_t *pData1, uint8_t *pData2, uint16_t Size)
+{
+  if ((pData1 == NULL) || (pData2 == NULL) || (Size == 0))
+  {
+    return HAL_ERROR;
+  }
+
+  if (hsai->State == HAL_SAI_STATE_READY)
+  {
+    /* Process Locked */
+    __HAL_LOCK(hsai);
+
+    hsai->pBuffPtr = pData1;
+    hsai->XferSize = Size;
+    hsai->XferCount = Size;
+    hsai->ErrorCode = HAL_SAI_ERROR_NONE;
+    hsai->State = HAL_SAI_STATE_BUSY_RX;
+
+    /* Set the SAI Rx DMA Half transfer complete callback */
+    hsai->hdmarx->XferHalfCpltCallback = SAI_DMARxHalfCplt;
+
+    /* Set the I2S Rx DMA M1 complete callback */
+    hsai->hdmarx->XferM1CpltCallback = SAI_DMARxCplt;
+    /* Set the SAI Rx DMA transfer complete callback */
+    hsai->hdmarx->XferCpltCallback = SAI_DMARxCplt;
+
+    /* Set the DMA error callback */
+    hsai->hdmarx->XferErrorCallback = SAI_DMAError;
+
+    /* Set the DMA Rx abort callback */
+    hsai->hdmarx->XferAbortCallback = NULL;
+
+    /* Enable the Rx DMA Stream */
+    if (HAL_DMAEx_MultiBufferStart_IT(hsai->hdmarx, (uint32_t)&hsai->Instance->DR, (uint32_t)pData1, (uint32_t)pData2, hsai->XferSize) != HAL_OK)
+    {
+      __HAL_UNLOCK(hsai);
+      return HAL_ERROR;
+    }
+
+    /* Check if the SAI is already enabled */
+    if ((hsai->Instance->CR1 & SAI_xCR1_SAIEN) == RESET)
     {
       /* Enable SAI peripheral */
       __HAL_SAI_ENABLE(hsai);

@@ -702,7 +702,11 @@ HAL_StatusTypeDef HAL_SAI_Receive_IT(SAI_HandleTypeDef *hsai, uint8_t *pData, ui
 
 /* Non-Blocking mode: DMA */
 HAL_StatusTypeDef HAL_SAI_Transmit_DMA(SAI_HandleTypeDef *hsai, uint8_t *pData, uint16_t Size);
+HAL_StatusTypeDef HAL_SAI_Transmit_DMA_DB(SAI_HandleTypeDef *hsai, uint8_t *pData1, uint8_t *pData2, uint16_t Size);
+
 HAL_StatusTypeDef HAL_SAI_Receive_DMA(SAI_HandleTypeDef *hsai, uint8_t *pData, uint16_t Size);
+HAL_StatusTypeDef HAL_SAI_Receive_DMA_DB(SAI_HandleTypeDef *hsai, uint8_t *pData1, uint8_t *pData2, uint16_t Size);
+
 HAL_StatusTypeDef HAL_SAI_DMAPause(SAI_HandleTypeDef *hsai);
 HAL_StatusTypeDef HAL_SAI_DMAResume(SAI_HandleTypeDef *hsai);
 HAL_StatusTypeDef HAL_SAI_DMAStop(SAI_HandleTypeDef *hsai);
