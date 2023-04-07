@@ -55,9 +55,9 @@ typedef struct {
 
 // Envelope settings
 #define THRESHOLD 0.007
-#define MAX_AUDIO_SAMPLE_DUR 5 // in seconds
-#define FRAME_LENGTH  (SAMPLE_RATE*MAX_AUDIO_SAMPLE_DUR/(BUFFER_SIZE/2))
-#define PROCESS_BUFFER_SIZE ROUND_UP((FRAME_LENGTH*(BUFFER_SIZE/2)), 2)
+#define MAX_AUDIO_SAMPLE_DUR 3 // in seconds
+#define FRAME_LENGTH  (SAMPLE_RATE*MAX_AUDIO_SAMPLE_DUR/(BUFFER_SIZE))
+#define PROCESS_BUFFER_SIZE ROUND_UP((FRAME_LENGTH*(BUFFER_SIZE)), 2)
 
 //Yes No settings
 #define CUTOFF 0.0032
@@ -94,10 +94,16 @@ uint8_t YesNo(int16_t* );
 /* USER CODE BEGIN 0 */
 
 //Define buffer for right and left audio channels
-static int16_t recordBuffer_R[BUFFER_SIZE / 2];
-static int16_t recordBuffer_L[BUFFER_SIZE / 2];
+static int16_t recordBuffer_R[BUFFER_SIZE];
+static int16_t recordBuffer_L[BUFFER_SIZE];
+
+static uint8_t saiDMATransmitBuffer[MY_DMA_BUFFER_SIZE_BYTES];
+static uint8_t saiDMAReceiveBuffer1[MY_DMA_BUFFER_SIZE_BYTES];
+static uint8_t saiDMAReceiveBuffer2[MY_DMA_BUFFER_SIZE_BYTES];
 
 __IO BufferStatusMessage_t bufferStatus;
+__IO uint8_t audio_adc_flag = 0;
+__IO uint8_t data_overwrite_flag = 0;
 
 static int16_t audioProcessBuffer[PROCESS_BUFFER_SIZE];
 
@@ -149,7 +155,7 @@ int main(void) {
     printf("Program Started!--------------------\n");
 
     //Initialise Audio -  Frequency selection must be defined by the wm9884 driver
-    Audio_Init(SAMPLE_RATE, 85);
+    Audio_Init(SAMPLE_RATE, 85, saiDMATransmitBuffer, saiDMAReceiveBuffer1,saiDMAReceiveBuffer2);
 
     Process process = {
             .init = 0,
@@ -161,7 +167,7 @@ int main(void) {
 
     envelope_alloc();
 
-    printf("Process Buffer Size: %u\n", PROCESS_BUFFER_SIZE);
+    printf("Process Buffer Size: %d\n", PROCESS_BUFFER_SIZE);
 
     /* USER CODE END 2 */
 
@@ -182,34 +188,25 @@ int main(void) {
 //            process.start_flag = 0;
 //        }
 
-        switch (bufferStatus) {
-            case BUFFER_STATUS_LOWER_HALF_FULL: {
-                RX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
+        if (bufferStatus == BUFFER_STATUS_UPPER_HALF_FULL)
+        {
+            bufferStatus = BUFFER_STATUS_IDLE;
 
+            uint8_t *p_audioBuffer = (audio_adc_flag == 1) ? saiDMAReceiveBuffer1: saiDMAReceiveBuffer2;
+            //SCB_InvalidateDCache_by_Addr(p_audioBuffer, sizeof(saiDMAReceiveBuffer1));
 
-                //do processing here
-                //printf("%d",recordBuffer_L[1]);
-                //puts("\nfirst Half");
-                ProcessBuffer(&recordBuffer_L[0], &process);
-
-                TX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
-                bufferStatus = BUFFER_STATUS_IDLE;
-                break;
+            for(uint32_t i = 0; i < BUFFER_SIZE; i++){
+                int16_t * samplePointer = (int16_t *) &p_audioBuffer[i*8];
+                recordBuffer_L[i] = *samplePointer;
+                recordBuffer_R[i] = *(samplePointer+2);
             }
-            case BUFFER_STATUS_UPPER_HALF_FULL: {
-                RX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
 
-                //do processing here
-                //puts("\nsecond Half");
-                ProcessBuffer(&recordBuffer_L[0], &process);
+            TX_Full(recordBuffer_L, recordBuffer_R, BUFFER_SIZE);
 
-                TX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
-                bufferStatus = BUFFER_STATUS_IDLE;
-                break;
-            }
-            default:
-                break;
+
         }
+
+
     }
     /* USER CODE END 3 */
 }
@@ -357,27 +354,27 @@ void ProcessBuffer(int16_t* S, Process *P){
 
 uint8_t YesNo(int16_t* buffer){
     //Create buffer for temporary float
-    float32_t tmpBuffer[BUFFER_SIZE/2];
+    float32_t tmpBuffer[BUFFER_SIZE];
     // copy data to float buffer
-    for (int i =0;i<(BUFFER_SIZE/2);i++){
+    for (int i =0;i<(BUFFER_SIZE);i++){
         tmpBuffer[i] = (float32_t)buffer[i];
     }
     //Create filter buffer
-    float32_t filter_buffer[BUFFER_SIZE/2];
+    float32_t filter_buffer[BUFFER_SIZE];
 
 
     //HP filter the signal
-    arm_biquad_cascade_df2T_f32(&highPass,tmpBuffer,filter_buffer,(BUFFER_SIZE/2));
+    arm_biquad_cascade_df2T_f32(&highPass,tmpBuffer,filter_buffer,(BUFFER_SIZE));
     float32_t HP = 0;
-    for (int i=0;i<(BUFFER_SIZE/2);i++){
+    for (int i=0;i<(BUFFER_SIZE);i++){
         HP = (filter_buffer[i] * filter_buffer[i]) + HP;
     }
-    memset(filter_buffer, 0, sizeof(float32_t) * (BUFFER_SIZE / 2));
+    memset(filter_buffer, 0, sizeof(float32_t) * (BUFFER_SIZE));
 
     // LP filter the signal
-    arm_biquad_cascade_df2T_f32(&lowPass,tmpBuffer,filter_buffer,(BUFFER_SIZE/2));
+    arm_biquad_cascade_df2T_f32(&lowPass,tmpBuffer,filter_buffer,(BUFFER_SIZE));
     float32_t LP = 0;
-    for (int i=0;i<(BUFFER_SIZE/2);i++){
+    for (int i=0;i<(BUFFER_SIZE);i++){
         LP = (filter_buffer[i] * filter_buffer[i]) + LP;
     }
 
@@ -395,14 +392,20 @@ uint8_t YesNo(int16_t* buffer){
 
 
 //These functions must be included as DMA callback
-void AUDIO_IN_HalfTransfer_CallBack(void) {
-    //printf("AUDIO IN HALF");
-    bufferStatus = BUFFER_STATUS_LOWER_HALF_FULL;
-}
+//void AUDIO_IN_HalfTransfer_CallBack(void) {
+//    //printf("AUDIO IN HALF");
+//    bufferStatus = BUFFER_STATUS_LOWER_HALF_FULL;
+//}
 
 void AUDIO_IN_TransferComplete_CallBack(void) {
+    if(bufferStatus == BUFFER_STATUS_UPPER_HALF_FULL){
+        data_overwrite_flag = 1;
+        puts("data overwrite");
+    }
     //printf("AUDIO IN COMPLETE");
     bufferStatus = BUFFER_STATUS_UPPER_HALF_FULL;
+
+    audio_adc_flag ^= 1; //swap buffer flag
 }
 
 void AUDIO_OUT_Error_CallBack(void) {

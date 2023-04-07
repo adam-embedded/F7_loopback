@@ -5,13 +5,14 @@
 //#include "MemoryLogger.h"
 #include "stdio.h"
 
-#define MY_DMA_BYTES_PER_FRAME 8
-#define MY_DMA_BYTES_PER_MSIZE 2
-#define MY_DMA_BUFFER_SIZE_BYTES BUFFER_SIZE * MY_DMA_BYTES_PER_FRAME
-#define MY_DMA_BUFFER_SIZE_MSIZES MY_DMA_BUFFER_SIZE_BYTES / MY_DMA_BYTES_PER_MSIZE
+//#define MY_DMA_BYTES_PER_FRAME 8
+//#define MY_DMA_BYTES_PER_MSIZE 2
+//#define MY_DMA_BUFFER_SIZE_BYTES BUFFER_SIZE * MY_DMA_BYTES_PER_FRAME
+//#define MY_DMA_BUFFER_SIZE_MSIZES MY_DMA_BUFFER_SIZE_BYTES / MY_DMA_BYTES_PER_MSIZE
 
-static uint8_t saiDMATransmitBuffer[MY_DMA_BUFFER_SIZE_BYTES];
-static uint8_t saiDMAReceiveBuffer[MY_DMA_BUFFER_SIZE_BYTES];
+static uint8_t *saiDMATransmitBuffer;
+static uint8_t *saiDMAReceiveBuffer1;
+static uint8_t *saiDMAReceiveBuffer2;
 
 static void My_SAI_ClockConfig(uint32_t AudioFreq);
 static void My_AUDIO_OUT_MspInit(void);
@@ -80,30 +81,41 @@ static SAI_HandleTypeDef         haudio_in_sai;
 
 ///////////////////////////////////////////////////////////
 
-void Audio_Init(uint32_t frequency, uint8_t volume)
+void Audio_Init(uint32_t frequency, uint8_t volume, uint8_t *TX_buffer, uint8_t *RX_buffer1, uint8_t *RX_buffer2)
 {
     if (volume > 100){
         puts("Volume set too high\nReverting to level of 80\n");
         volume = 80;
     }
 
-  haudio_out_sai.Instance = SAI1_Block_A;
-  haudio_in_sai.Instance = SAI1_Block_B;
+    saiDMATransmitBuffer = TX_buffer;
+    saiDMAReceiveBuffer1 = RX_buffer1;
+    saiDMAReceiveBuffer2 = RX_buffer2;
 
-  My_SAI_ClockConfig(frequency);
+    haudio_out_sai.Instance = SAI1_Block_A;
+    haudio_in_sai.Instance = SAI1_Block_B;
 
-  My_AUDIO_OUT_MspInit();
-  My_SAI_Out_Init(frequency);
-  My_AUDIO_IN_MspInit();
-  My_SAI_In_Init(frequency);
+    My_SAI_ClockConfig(frequency);
 
-  wm8994_Init(AUDIO_I2C_ADDRESS, INPUT_DEVICE_INPUT_LINE_1 | OUTPUT_DEVICE_HEADPHONE, volume, frequency);
+    My_AUDIO_OUT_MspInit();
+    My_SAI_Out_Init(frequency);
+    My_AUDIO_IN_MspInit();
+    My_SAI_In_Init(frequency);
+
+    wm8994_Init(AUDIO_I2C_ADDRESS, INPUT_DEVICE_INPUT_LINE_1 | OUTPUT_DEVICE_HEADPHONE, volume, frequency);
 
 
-  printf("Codec Initialised\n");
+    printf("Codec Initialised\n");
 
-  HAL_SAI_Transmit_DMA(&haudio_out_sai, saiDMATransmitBuffer, MY_DMA_BUFFER_SIZE_MSIZES);
-  HAL_SAI_Receive_DMA( &haudio_in_sai,  saiDMAReceiveBuffer,  MY_DMA_BUFFER_SIZE_MSIZES);
+    HAL_SAI_Transmit_DMA(&haudio_out_sai, saiDMATransmitBuffer, MY_DMA_BUFFER_SIZE_MSIZES);
+    //HAL_SAI_Receive_DMA( &haudio_in_sai,  saiDMAReceiveBuffer,  MY_DMA_BUFFER_SIZE_MSIZES);
+
+    HAL_SAI_Receive_DMA_DB(
+          &haudio_in_sai,
+          saiDMAReceiveBuffer1,
+          saiDMAReceiveBuffer2,
+          MY_DMA_BUFFER_SIZE_MSIZES);
+
 }
 
 ///////////////////////////////////////////////////////////
@@ -354,11 +366,11 @@ static void My_SAI_In_Init(uint32_t AudioFreq)
 
 ////////////////////////////////////////////////////////////////
 
-void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai){
-  (void)hsai;
-  //printf("SAI RX HALF");
-  AUDIO_IN_HalfTransfer_CallBack();
-}
+//void HAL_SAI_RxHalfCpltCallback(SAI_HandleTypeDef *hsai){
+//  (void)hsai;
+//  //printf("SAI RX HALF");
+//  AUDIO_IN_HalfTransfer_CallBack();
+//}
 
 void HAL_SAI_RxCpltCallback(SAI_HandleTypeDef *hsai){
   (void)hsai;
@@ -385,58 +397,60 @@ void DMA2_Stream1_IRQHandler(void){
 //frame length 64 bytes, ie. samples are spaced 8 bytes apart
 //sample size 2 bytes
 //frame is every 8 bytes, data appears at the 1st and 4th, left and right channel
-void RX_full(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
-{
-    for(uint32_t i = 0; i<num_samples; i++){
-        int16_t * samplePointer = (int16_t *) &saiDMAReceiveBuffer[i*8];
-        sampleBuffer_L[i] = *samplePointer;
-        sampleBuffer_R[i] = *(samplePointer+2);
-    }
-}
 
-void RX_LowerHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
-{
-  for(uint32_t i = 0; i<num_samples; i++){
-    int16_t * samplePointer = (int16_t *) &saiDMAReceiveBuffer[i*8];
-    sampleBuffer_L[i] = *samplePointer;
-    sampleBuffer_R[i] = *(samplePointer+2);
-  }
-}
-
-void RX_UpperHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
-{
-  for(uint32_t i = 0; i<num_samples; i++){
-    int16_t * samplePointer = (int16_t *) &saiDMAReceiveBuffer[(MY_DMA_BUFFER_SIZE_BYTES / 2) + i*8];
-    sampleBuffer_L[i] = *samplePointer;
-    sampleBuffer_R[i] = *(samplePointer+2);
-  }
-}
-
+//void RX_full(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
+//{
+//    for(uint32_t i = 0; i<num_samples; i++){
+//        int16_t * samplePointer = (int16_t *) &saiDMAReceiveBuffer[i*8];
+//        sampleBuffer_L[i] = *samplePointer;
+//        sampleBuffer_R[i] = *(samplePointer+2);
+//    }
+//}
 void TX_Full(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
 {
     for(uint32_t i=0; i<num_samples; i++){
         int16_t * p = (int16_t *) &saiDMATransmitBuffer[i*8];
         *p = sampleBuffer_L[i];
-        *(p+2) = sampleBuffer_R[i];
+        //*(p+2) = sampleBuffer_R[i];
     }
 }
-
-void TX_LowerHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
-{
-  for(uint32_t i=0; i<num_samples; i++){
-    int16_t * p = (int16_t *) &saiDMATransmitBuffer[i*8];
-    *p = sampleBuffer_L[i];
-    *(p+2) = sampleBuffer_R[i];
-  }
-}
-
-
-void TX_UpperHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
-{
-  for(uint32_t i=0; i<num_samples; i++){
-    int16_t * p = (int16_t *) &saiDMATransmitBuffer[(MY_DMA_BUFFER_SIZE_BYTES / 2) + i*8];
-    *p = sampleBuffer_L[i];
-    *(p+2) = sampleBuffer_R[i];
-  }
-}
+//
+//void RX_LowerHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
+//{
+//  for(uint32_t i = 0; i<num_samples; i++){
+//    int16_t * samplePointer = (int16_t *) &saiDMAReceiveBuffer[i*8];
+//    sampleBuffer_L[i] = *samplePointer;
+//    sampleBuffer_R[i] = *(samplePointer+2);
+//  }
+//}
+//
+//void RX_UpperHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
+//{
+//  for(uint32_t i = 0; i<num_samples; i++){
+//    int16_t * samplePointer = (int16_t *) &saiDMAReceiveBuffer[(MY_DMA_BUFFER_SIZE_BYTES / 2) + i*8];
+//    sampleBuffer_L[i] = *samplePointer;
+//    sampleBuffer_R[i] = *(samplePointer+2);
+//  }
+//}
+//
+//
+//
+//void TX_LowerHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
+//{
+//  for(uint32_t i=0; i<num_samples; i++){
+//    int16_t * p = (int16_t *) &saiDMATransmitBuffer[i*8];
+//    *p = sampleBuffer_L[i];
+//    *(p+2) = sampleBuffer_R[i];
+//  }
+//}
+//
+//
+//void TX_UpperHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
+//{
+//  for(uint32_t i=0; i<num_samples; i++){
+//    int16_t * p = (int16_t *) &saiDMATransmitBuffer[(MY_DMA_BUFFER_SIZE_BYTES / 2) + i*8];
+//    *p = sampleBuffer_L[i];
+//    *(p+2) = sampleBuffer_R[i];
+//  }
+//}
 

@@ -20,9 +20,12 @@
     </configurations>
   </component>
   <component name="ChangeListManager">
-    <list default="true" id="80c8a737-eb1b-4993-89f2-3809db686adf" name="Changes" comment="changes to error">
+    <list default="true" id="80c8a737-eb1b-4993-89f2-3809db686adf" name="Changes" comment="added double buffer function">
       <change beforePath="$PROJECT_DIR$/.idea/workspace.xml" beforeDir="false" afterPath="$PROJECT_DIR$/.idea/workspace.xml" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Core/Src/main.c" beforeDir="false" afterPath="$PROJECT_DIR$/Core/Src/main.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Core/envelope/src/envelope.c" beforeDir="false" afterPath="$PROJECT_DIR$/Core/envelope/src/envelope.c" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_sai.h" beforeDir="false" afterPath="$PROJECT_DIR$/Drivers/STM32F7xx_HAL_Driver/Inc/stm32f7xx_hal_sai.h" afterDir="false" />
+      <change beforePath="$PROJECT_DIR$/Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_sai.c" beforeDir="false" afterPath="$PROJECT_DIR$/Drivers/STM32F7xx_HAL_Driver/Src/stm32f7xx_hal_sai.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Drivers/wm8994/BSP_Audio_Init.c" beforeDir="false" afterPath="$PROJECT_DIR$/Drivers/wm8994/BSP_Audio_Init.c" afterDir="false" />
       <change beforePath="$PROJECT_DIR$/Drivers/wm8994/audio_init.h" beforeDir="false" afterPath="$PROJECT_DIR$/Drivers/wm8994/audio_init.h" afterDir="false" />
     </list>
@@ -40,6 +43,13 @@
       <list>
         <option value="CMakeLists.txt" />
       </list>
+    </option>
+  </component>
+  <component name="Git.Settings">
+    <option name="RECENT_BRANCH_BY_REPOSITORY">
+      <map>
+        <entry key="$PROJECT_DIR$" value="master" />
+      </map>
     </option>
   </component>
   <component name="MarkdownSettingsMigration">
@@ -125,7 +135,7 @@
       <workItem from="1680178340879" duration="8337000" />
       <workItem from="1680794031086" duration="2321000" />
       <workItem from="1680806254467" duration="11729000" />
-      <workItem from="1680828959598" duration="880000" />
+      <workItem from="1680828959598" duration="6664000" />
     </task>
     <task id="LOCAL-00001" summary="added warning for volume level.">
       <created>1676336869031</created>
@@ -162,7 +172,21 @@
       <option name="project" value="LOCAL" />
       <updated>1680188101002</updated>
     </task>
-    <option name="localTasksCounter" value="6" />
+    <task id="LOCAL-00006" summary="fixed error">
+      <created>1680880294450</created>
+      <option name="number" value="00006" />
+      <option name="presentableId" value="LOCAL-00006" />
+      <option name="project" value="LOCAL" />
+      <updated>1680880294450</updated>
+    </task>
+    <task id="LOCAL-00007" summary="added double buffer function">
+      <created>1680881235816</created>
+      <option name="number" value="00007" />
+      <option name="presentableId" value="LOCAL-00007" />
+      <option name="project" value="LOCAL" />
+      <updated>1680881235816</updated>
+    </task>
+    <option name="localTasksCounter" value="8" />
     <servers />
   </component>
   <component name="TypeScriptGeneratedFilesManager">
@@ -174,6 +198,8 @@
     <MESSAGE value="major changes" />
     <MESSAGE value="debugging issues" />
     <MESSAGE value="changes to error" />
-    <option name="LAST_COMMIT_MESSAGE" value="changes to error" />
+    <MESSAGE value="fixed error" />
+    <MESSAGE value="added double buffer function" />
+    <option name="LAST_COMMIT_MESSAGE" value="added double buffer function" />
   </component>
 </project>

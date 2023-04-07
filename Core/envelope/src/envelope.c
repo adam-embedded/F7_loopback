@@ -15,7 +15,7 @@
 
 #include "audio_init.h"
 
-#define SAMPLES (BUFFER_SIZE/2)
+#define SAMPLES (BUFFER_SIZE)
 
 typedef struct {
     int32_t Fs;
@@ -31,7 +31,7 @@ typedef struct {
 static arm_rfft_fast_instance_f32 J;
 
 void envelope_alloc(){
-    arm_rfft_fast_init_f32(&J, BUFFER_SIZE/2);
+    arm_rfft_fast_init_f32(&J, BUFFER_SIZE);
 }
 
 void envelope(int16_t* S, float32_t *m_out){
