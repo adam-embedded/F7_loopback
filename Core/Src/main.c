@@ -99,6 +99,8 @@ static int16_t recordBuffer_L[BUFFER_SIZE / 2];
 
 __IO BufferStatusMessage_t bufferStatus;
 
+static int16_t audioProcessBuffer[PROCESS_BUFFER_SIZE];
+
 
 /* USER CODE END 0 */
 
@@ -159,6 +161,8 @@ int main(void) {
 
     envelope_alloc();
 
+    printf("Process Buffer Size: %u\n", PROCESS_BUFFER_SIZE);
+
     /* USER CODE END 2 */
 
     /* Infinite loop */
@@ -182,9 +186,10 @@ int main(void) {
             case BUFFER_STATUS_LOWER_HALF_FULL: {
                 RX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
 
+
                 //do processing here
                 //printf("%d",recordBuffer_L[1]);
-                puts("\nfirst Half");
+                //puts("\nfirst Half");
                 ProcessBuffer(&recordBuffer_L[0], &process);
 
                 TX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
@@ -195,7 +200,7 @@ int main(void) {
                 RX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
 
                 //do processing here
-                puts("\nsecond Half");
+                //puts("\nsecond Half");
                 ProcessBuffer(&recordBuffer_L[0], &process);
 
                 TX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
@@ -261,7 +266,6 @@ void SystemClock_Config(void) {
 
 /* USER CODE BEGIN 4 */
 
-static int16_t audioProcessBuffer[PROCESS_BUFFER_SIZE];
 static float32_t tmp_m[BUFFER_SIZE/2] = {0};
 
 // Main function for processing the buffer
@@ -269,21 +273,22 @@ void ProcessBuffer(int16_t* S, Process *P){
     // allocate temporary results buffer, make sure to fill buffer with zeros.
 
     //envelope(S,tmp_m);
-//    if (P->buff_pos > (PROCESS_BUFFER_SIZE)) {
-//        puts("Buffer overrun");
-//        P->buff_pos = 0;
-//        return;
-//    }
+    if (P->buff_pos > (PROCESS_BUFFER_SIZE)) {
+        puts("Buffer overrun");
+        P->buff_pos = 0;
+        return;
+    }
+    uint32_t start = HAL_GetTick();
     if (!P->init) {
-        puts("in zero");
+        //puts("in zero");
         if (tmp_m[0] != 0) {
 
             for (int i = 0; i < (BUFFER_SIZE / 2); i++) {
                 //printf("%f\n",tmp_m[i]);
                 if (tmp_m[i] > THRESHOLD) {
-                    P->init = 1;
+                    P->init = true;
                     puts("start");
-                    Error_Handler();
+                    //Error_Handler();
                     for (int d = 0; d < (BUFFER_SIZE / 2); d++) {
                         audioProcessBuffer[P->buff_pos] = S[d];
                         P->buff_pos++;
@@ -293,17 +298,21 @@ void ProcessBuffer(int16_t* S, Process *P){
             }
         }
     }
+
+
     else {//if(P->init){
-        //puts("end");
+        puts("end");
         for (int i = 0; i < (BUFFER_SIZE / 2); i++) {
             if (tmp_m[i] < THRESHOLD) {
-                //copy final part of buffer
-                for (int d=0; d < (BUFFER_SIZE/2);d++){
+                puts("reached threshold for end");
+//                    //copy final part of buffer
+                for (int d = 0; d < (BUFFER_SIZE / 2); d++) {
                     audioProcessBuffer[P->buff_pos] = S[d];
                     P->buff_pos++;
                 }
                 P->buff_pos = 0;
                 P->work = 1;
+                P->init = false;
                 break;
             }
             audioProcessBuffer[P->buff_pos] = S[i];
@@ -316,6 +325,13 @@ void ProcessBuffer(int16_t* S, Process *P){
             return;
         }
     }
+    uint32_t end = HAL_GetTick();
+
+
+    //printf("Elapsed Time for switch: %lu", (end - start));
+
+
+    //}
 //    else if(P->init == 1){ // Needs changing, already checking for init == 1 above. try and incorporate in same condition.
 //        //puts("middle");
 //        for (int i=0; i < (BUFFER_SIZE/2);i++){
@@ -323,6 +339,20 @@ void ProcessBuffer(int16_t* S, Process *P){
 //            P->buff_pos++;
 //        }
 //    }
+
+
+/////////// ASM Example //////////////////
+//int res = 0;
+//int i = 5;
+//int j = 4;
+//__asm(
+//        "ADD %[result], %[input_i], %[input_j]"
+//        : [result] "=r" (res)
+//        : [input_i] "r" (i), [input_j] "r" (j)
+//        );
+//
+//////////////////////////////////////////////
+
 }
 
 uint8_t YesNo(int16_t* buffer){

@@ -8,7 +8,7 @@
 #include "stdint.h"
 #include "wm8994.h"
 
-#define BUFFER_SIZE 1024//4096//2048//1024
+#define BUFFER_SIZE 8192//4096//2048//1024
 
 #define SAMPLE_RATE AUDIO_FREQUENCY_32K
 
@@ -22,11 +22,14 @@ typedef uint32_t BufferStatusMessage_t ;
 
 void Audio_Init(uint32_t frequency, uint8_t volume);
 
+void RX_Full(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples);
+void TX_Full(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples);
 
 void RX_LowerHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples);
 void RX_UpperHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples);
 void TX_LowerHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples);
 void TX_UpperHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples);
+
 
 void AUDIO_IN_TransferComplete_CallBack(void);
 void AUDIO_IN_HalfTransfer_CallBack(void);

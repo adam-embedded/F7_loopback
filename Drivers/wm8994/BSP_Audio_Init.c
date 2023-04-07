@@ -385,22 +385,42 @@ void DMA2_Stream1_IRQHandler(void){
 //frame length 64 bytes, ie. samples are spaced 8 bytes apart
 //sample size 2 bytes
 //frame is every 8 bytes, data appears at the 1st and 4th, left and right channel
+void RX_full(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
+{
+    for(uint32_t i = 0; i<num_samples; i++){
+        int16_t * samplePointer = (int16_t *) &saiDMAReceiveBuffer[i*8];
+        sampleBuffer_L[i] = *samplePointer;
+        sampleBuffer_R[i] = *(samplePointer+2);
+    }
+}
+
 void RX_LowerHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
 {
   for(uint32_t i = 0; i<num_samples; i++){
-    int16_t * samplePointer = (int16_t *) & saiDMAReceiveBuffer[i*8];
+    int16_t * samplePointer = (int16_t *) &saiDMAReceiveBuffer[i*8];
     sampleBuffer_L[i] = *samplePointer;
     sampleBuffer_R[i] = *(samplePointer+2);
   }
 }
+
 void RX_UpperHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
 {
   for(uint32_t i = 0; i<num_samples; i++){
-    int16_t * samplePointer = (int16_t *) & saiDMAReceiveBuffer[(MY_DMA_BUFFER_SIZE_BYTES / 2) + i*8];
+    int16_t * samplePointer = (int16_t *) &saiDMAReceiveBuffer[(MY_DMA_BUFFER_SIZE_BYTES / 2) + i*8];
     sampleBuffer_L[i] = *samplePointer;
     sampleBuffer_R[i] = *(samplePointer+2);
   }
 }
+
+void TX_Full(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
+{
+    for(uint32_t i=0; i<num_samples; i++){
+        int16_t * p = (int16_t *) &saiDMATransmitBuffer[i*8];
+        *p = sampleBuffer_L[i];
+        *(p+2) = sampleBuffer_R[i];
+    }
+}
+
 void TX_LowerHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
 {
   for(uint32_t i=0; i<num_samples; i++){
@@ -409,6 +429,8 @@ void TX_LowerHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t n
     *(p+2) = sampleBuffer_R[i];
   }
 }
+
+
 void TX_UpperHalf(int16_t * sampleBuffer_L, int16_t * sampleBuffer_R, uint32_t num_samples)
 {
   for(uint32_t i=0; i<num_samples; i++){
