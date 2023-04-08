@@ -54,10 +54,11 @@ typedef struct {
 /* USER CODE BEGIN PD */
 
 // Envelope settings
-#define THRESHOLD 0.007
+#define THRESHOLD 1
 #define MAX_AUDIO_SAMPLE_DUR 5 // in seconds
 #define FRAME_LENGTH  (SAMPLE_RATE*MAX_AUDIO_SAMPLE_DUR/(BUFFER_SIZE/2))
-#define PROCESS_BUFFER_SIZE ROUND_UP((FRAME_LENGTH*(BUFFER_SIZE/2)), 2)
+//#define PROCESS_BUFFER_SIZE ROUND_UP((FRAME_LENGTH*(BUFFER_SIZE/2)), 2)
+#define PROCESS_BUFFER_SIZE 160000
 
 //Yes No settings
 #define CUTOFF 0.0032
@@ -191,6 +192,12 @@ int main(void) {
                 //printf("%d",recordBuffer_L[1]);
                 //puts("\nfirst Half");
                 ProcessBuffer(&recordBuffer_L[0], &process);
+                if (process.work == 1) {
+                    // Check if yes or no, write to struct
+                    process.YesNo = YesNo(audioProcessBuffer);
+                    printf("signal status: %d\n", process.YesNo);
+                    process.work = 0;
+                }
 
                 TX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
                 bufferStatus = BUFFER_STATUS_IDLE;
@@ -272,7 +279,8 @@ static float32_t tmp_m[BUFFER_SIZE/2] = {0};
 void ProcessBuffer(int16_t* S, Process *P){
     // allocate temporary results buffer, make sure to fill buffer with zeros.
 
-    //envelope(S,tmp_m);
+
+    envelope(S,tmp_m);
     if (P->buff_pos > (PROCESS_BUFFER_SIZE)) {
         puts("Buffer overrun");
         P->buff_pos = 0;
@@ -298,18 +306,16 @@ void ProcessBuffer(int16_t* S, Process *P){
             }
         }
     }
-
-
     else {//if(P->init){
         puts("end");
-        for (int i = 0; i < (BUFFER_SIZE / 2); i++) {
+        for (uint32_t i = 0; i < (BUFFER_SIZE / 2); i++) {
             if (tmp_m[i] < THRESHOLD) {
                 puts("reached threshold for end");
 //                    //copy final part of buffer
-                for (int d = 0; d < (BUFFER_SIZE / 2); d++) {
-                    audioProcessBuffer[P->buff_pos] = S[d];
-                    P->buff_pos++;
-                }
+//                for (int d = 0; d < (BUFFER_SIZE / 2); d++) {
+//                    audioProcessBuffer[P->buff_pos] = S[d];
+//                    P->buff_pos++;
+//                }
                 P->buff_pos = 0;
                 P->work = 1;
                 P->init = false;
@@ -318,79 +324,63 @@ void ProcessBuffer(int16_t* S, Process *P){
             audioProcessBuffer[P->buff_pos] = S[i];
             P->buff_pos++;
         }
-        if (P->work == 1) {
-            // Check if yes or no, write to struct
-            P->YesNo = YesNo(audioProcessBuffer);
-            printf("signal status: %d\n", P->YesNo);
-            return;
-        }
+
     }
     uint32_t end = HAL_GetTick();
 
 
     //printf("Elapsed Time for switch: %lu", (end - start));
-
-
-    //}
-//    else if(P->init == 1){ // Needs changing, already checking for init == 1 above. try and incorporate in same condition.
-//        //puts("middle");
-//        for (int i=0; i < (BUFFER_SIZE/2);i++){
-//            audioProcessBuffer[P->buff_pos] = S[i];
-//            P->buff_pos++;
-//        }
-//    }
-
-
-/////////// ASM Example //////////////////
-//int res = 0;
-//int i = 5;
-//int j = 4;
-//__asm(
-//        "ADD %[result], %[input_i], %[input_j]"
-//        : [result] "=r" (res)
-//        : [input_i] "r" (i), [input_j] "r" (j)
-//        );
-//
-//////////////////////////////////////////////
-
 }
 
+#define AUDIO_BLOCK_SIZE 5513
+
+//Create buffer for temporary float
+float tmpBuffer[BUFFER_SIZE] = {0};
+
+//Create filter buffer
+float32_t filter_buffer[AUDIO_BLOCK_SIZE];
+
 uint8_t YesNo(int16_t* buffer){
-    //Create buffer for temporary float
-    float32_t tmpBuffer[BUFFER_SIZE/2];
+
+
     // copy data to float buffer
-    for (int i =0;i<(BUFFER_SIZE/2);i++){
-        tmpBuffer[i] = (float32_t)buffer[i];
+    for (uint32_t i =0;i < (BUFFER_SIZE);i++){
+        tmpBuffer[i] = (float)buffer[i];
     }
-    //Create filter buffer
-    float32_t filter_buffer[BUFFER_SIZE/2];
 
 
-    //HP filter the signal
-    arm_biquad_cascade_df2T_f32(&highPass,tmpBuffer,filter_buffer,(BUFFER_SIZE/2));
+
+//    //HP filter the signal
+    arm_biquad_cascade_df2T_f32(
+            &highPass,
+            tmpBuffer,
+            filter_buffer,
+            BUFFER_SIZE);
+
     float32_t HP = 0;
-    for (int i=0;i<(BUFFER_SIZE/2);i++){
+    for (int i=0;i<(BUFFER_SIZE);i++){
         HP = (filter_buffer[i] * filter_buffer[i]) + HP;
     }
-    memset(filter_buffer, 0, sizeof(float32_t) * (BUFFER_SIZE / 2));
-
-    // LP filter the signal
-    arm_biquad_cascade_df2T_f32(&lowPass,tmpBuffer,filter_buffer,(BUFFER_SIZE/2));
-    float32_t LP = 0;
-    for (int i=0;i<(BUFFER_SIZE/2);i++){
-        LP = (filter_buffer[i] * filter_buffer[i]) + LP;
-    }
-
-    //calculate ratio
-    float32_t ratio = HP/LP;
-
-    if (ratio >= CUTOFF){
-        if (ratio <= YESMAX) return 1; // return yes
-        else return 2; // return error
-    } else {
-        if (ratio >= NOMIN) return 0; //return no
-        else return 2; //return error
-    }
+    //memset(filter_buffer, 0, sizeof(float32_t) * (BUFFER_SIZE));
+//
+//    // LP filter the signal
+//    arm_biquad_cascade_df2T_f32(&lowPass,tmpBuffer,filter_buffer,(PROCESS_BUFFER_SIZE));
+//    float32_t LP = 0;
+//    for (int i=0;i<(PROCESS_BUFFER_SIZE);i++){
+//        LP = (filter_buffer[i] * filter_buffer[i]) + LP;
+//    }
+//
+//    //calculate ratio
+//    float32_t ratio = HP/LP;
+//
+//    if (ratio >= CUTOFF){
+//        if (ratio <= YESMAX) return 1; // return yes
+//        else return 2; // return error
+//    } else {
+//        if (ratio >= NOMIN) return 0; //return no
+//        else return 2; //return error
+//    }
+    return 2;
 }
 
 

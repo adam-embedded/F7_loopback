@@ -36,7 +36,7 @@ void envelope_alloc(){
 
 void envelope(int16_t* S, float32_t *m_out){
     //arm_cfft_f32(&arm_cfft_sR_f32_len512);
-    puts("inside envelope");
+    //puts("inside envelope");
     par Par = {
             .Fs = SAMPLE_RATE,
             .Fc = 70,
@@ -61,8 +61,8 @@ void envelope(int16_t* S, float32_t *m_out){
     uint32_t max_index;
     arm_max_q15(&s_abs,SAMPLES,&max_s,&max_index); //maximum of the absolute-value signal
 
-    puts("through max");
-    printf("MAX: %d\n",max_s);
+    //puts("through max");
+    //printf("MAX: %d\n",max_s);
 
     for (int i = 0; i < SAMPLES; i++){ //Scaled absolute signal
         s_abs[i] = s_abs[i] / max_s;
@@ -114,9 +114,9 @@ void envelope(int16_t* S, float32_t *m_out){
         ix[i] = i;
     }
 
-    puts("before while");
+    //puts("before while");
     while (E > Etol && iter < Par.Ni){
-        puts("entered while");
+        //puts("entered while");
         iter++;
 
         float32_t a[SAMPLES];
@@ -128,17 +128,17 @@ void envelope(int16_t* S, float32_t *m_out){
         //}
 
 
-        puts("before forward fft");
+        //puts("before forward fft");
 
         // Forward FFT
         arm_rfft_fast_f32(&J, a, a_result, 0);
 
-        puts("after forward fft");
+        //puts("after forward fft");
 
         a_result[(i_cutoff[0]*2)] = 0;
 
         // Reverse FFT
-        arm_cfft_f32(&arm_cfft_sR_f32_len2048, a_result, 1, 1);
+        arm_cfft_f32(&arm_cfft_sR_f32_len512, a_result, 1, 1);
 
         arm_cmplx_mag_f32(a_result, a, SAMPLES);
 
@@ -154,8 +154,8 @@ void envelope(int16_t* S, float32_t *m_out){
         }
         E = E / Par.Nx;
 
-        printf("PAR.NS: %lu\n", Par.Ns);
-        printf("iter_m: %d\n", iter_m);
+        //printf("PAR.NS: %lu\n", Par.Ns);
+        //printf("iter_m: %d\n", iter_m);
 
         /* Output (modulator) */
         //TODO - error here, there is no met criterion for submitting the output
@@ -172,7 +172,7 @@ void envelope(int16_t* S, float32_t *m_out){
         }
 
     }
-    puts("after While");
+    //puts("after While");
     iter = 0;
 
 
