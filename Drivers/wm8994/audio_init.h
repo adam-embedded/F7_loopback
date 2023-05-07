@@ -8,7 +8,7 @@
 #include "stdint.h"
 #include "wm8994.h"
 
-#define BUFFER_SIZE 512//4096//2048//1024
+#define BUFFER_SIZE 1024//4096//2048//1024
 
 #define SAMPLE_RATE AUDIO_FREQUENCY_32K
 

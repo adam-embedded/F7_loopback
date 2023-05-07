@@ -31,11 +31,25 @@ extern "C" {
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include "stdbool.h"
 
 /* USER CODE END Includes */
 
 /* Exported types ------------------------------------------------------------*/
 /* USER CODE BEGIN ET */
+typedef struct {
+    uint32_t buff_pos;
+    uint8_t change_flag;
+    bool init;
+    uint8_t YesNo;
+    uint8_t work;
+} Process;
+
+enum yesNO {
+    YES,
+    NO,
+    ERR
+};
 
 /* USER CODE END ET */
 
@@ -53,6 +67,8 @@ extern "C" {
 void Error_Handler(void);
 
 /* USER CODE BEGIN EFP */
+void LED_Process(Process *);
+
 
 /* USER CODE END EFP */
 

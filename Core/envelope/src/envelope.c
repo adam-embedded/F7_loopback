@@ -31,7 +31,7 @@ typedef struct {
 static arm_rfft_fast_instance_f32 J;
 
 void envelope_alloc(){
-    arm_rfft_fast_init_f32(&J, BUFFER_SIZE/2);
+    arm_rfft_fast_init_f32(&J, SAMPLES);
 }
 
 void envelope(int16_t* S, float32_t *m_out){
@@ -40,26 +40,22 @@ void envelope(int16_t* S, float32_t *m_out){
     par Par = {
             .Fs = SAMPLE_RATE,
             .Fc = 70,
-            .Et = powf(10,-5),
-            .Ni = powf(10,3),
+            .Et = 0.0001f,//powf(10,-5),
+            .Ni = 10000,//powf(10,3),
             .Ns = SAMPLES,
             .Nx = SAMPLES,
             .D = 1,
     };
     float32_t s_abs[SAMPLES];
 
-//    for (int i = 0; i < SAMPLES; i++){
-//        printf("%d\n",S[i]);
-//    }
-
     for (int i = 0; i < SAMPLES; i++){
         s_abs[i] = abs(S[i]);
         //printf("%f, ",s_abs[i]);
     }
 
-    uint16_t max_s;
+    float32_t max_s;
     uint32_t max_index;
-    arm_max_q15(&s_abs,SAMPLES,&max_s,&max_index); //maximum of the absolute-value signal
+    arm_max_f32(&s_abs,SAMPLES,&max_s,&max_index); //maximum of the absolute-value signal
 
     //puts("through max");
     //printf("MAX: %d\n",max_s);
@@ -158,7 +154,7 @@ void envelope(int16_t* S, float32_t *m_out){
         //printf("iter_m: %d\n", iter_m);
 
         /* Output (modulator) */
-        //TODO - error here, there is no met criterion for submitting the output
+        //TODO - error handling here, if there is no met criterion for submitting the output
         if ( iter_m <= nim && (iter == 0 || (E <= Etol && nim == 1 && 0 == Par.Ni)) )
         {
             //m_out(1+(iter_m-1)*ns:iter_m*ns) = m(abs(ix));

@@ -6,12 +6,8 @@
   ******************************************************************************
   * @attention
   *
-  * Copyright (c) 2023 STMicroelectronics.
+  * Copyright (c) 2023 Adam Slaymark.
   * All rights reserved.
-  *
-  * This software is licensed under terms that can be found in the LICENSE file
-  * in the root directory of this software component.
-  * If no LICENSE file comes with this software, it is provided AS-IS.
   *
   ******************************************************************************
   */
@@ -31,6 +27,7 @@
 #include "wm8994.h"
 #include "envelope.h"
 #include "arm_math.h"
+//#include "led_proc.h"
 
 // import filters
 #include "highPass_coef_6000Hz.h"
@@ -40,13 +37,7 @@
 
 /* Private typedef -----------------------------------------------------------*/
 /* USER CODE BEGIN PTD */
-typedef struct {
-    uint32_t    buff_pos;
-    uint8_t     start_flag;
-    bool        init;
-    uint8_t     YesNo;
-    uint8_t     work;
-}Process;
+
 
 /* USER CODE END PTD */
 
@@ -54,21 +45,12 @@ typedef struct {
 /* USER CODE BEGIN PD */
 
 // Envelope settings
-#define THRESHOLD 1
-#define MAX_AUDIO_SAMPLE_DUR 5 // in seconds
-#define FRAME_LENGTH  (SAMPLE_RATE*MAX_AUDIO_SAMPLE_DUR/(BUFFER_SIZE/2))
-//#define PROCESS_BUFFER_SIZE ROUND_UP((FRAME_LENGTH*(BUFFER_SIZE/2)), 2)
-#define PROCESS_BUFFER_SIZE 160000
+#define THRESHOLD 2350
 
 //Yes No settings
 #define CUTOFF 0.0032
 #define YESMAX 1.368
 #define NOMIN 0.000184
-
-//#define XSTR(x) STR(x)
-//#define STR(x) #x
-
-//#pragma message "Value of process buffer: " XSTR(PROCESS_BUFFER_SIZE)
 
 /* USER CODE END PD */
 
@@ -81,13 +63,15 @@ typedef struct {
 
 /* USER CODE BEGIN PV */
 
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
 void SystemClock_Config(void);
+
 /* USER CODE BEGIN PFP */
-void ProcessBuffer(int16_t*, Process*);
-uint8_t YesNo(int16_t* );
+void ProcessBuffer(int16_t *, Process *);
+void YesNo(int16_t *, float32_t *, float32_t *, Process *);
 
 /* USER CODE END PFP */
 
@@ -100,7 +84,7 @@ static int16_t recordBuffer_L[BUFFER_SIZE / 2];
 
 __IO BufferStatusMessage_t bufferStatus;
 
-static int16_t audioProcessBuffer[PROCESS_BUFFER_SIZE];
+//static int16_t audioProcessBuffer[PROCESS_BUFFER_SIZE];
 
 
 /* USER CODE END 0 */
@@ -152,17 +136,16 @@ int main(void) {
     //Initialise Audio -  Frequency selection must be defined by the wm9884 driver
     Audio_Init(SAMPLE_RATE, 85);
 
+    // Could be a global variable, however it is good to practice memory safety
     Process process = {
             .init = 0,
-            .start_flag = 0,
+            .change_flag = 0,
             .buff_pos = 0,
             .YesNo = 2,
             .work = 0,
     };
 
     envelope_alloc();
-
-    printf("Process Buffer Size: %u\n", PROCESS_BUFFER_SIZE);
 
     /* USER CODE END 2 */
 
@@ -173,44 +156,28 @@ int main(void) {
 
         /* USER CODE BEGIN 3 */
 
-        // Update status message
-//        if (process.init == 1 && process.start_flag == 0){
-//            puts("Signal Received");
-//            process.start_flag = 1;
-//        } else if (process.init == 0 && process.start_flag == 1){
-//            puts("signal sampling finished");
-//            printf("command received: %d",process.YesNo);
-//            process.start_flag = 0;
-//        }
+        // Run LED function
+        LED_Process(&process);
+
 
         switch (bufferStatus) {
             case BUFFER_STATUS_LOWER_HALF_FULL: {
-                RX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
-
-
-                //do processing here
-                //printf("%d",recordBuffer_L[1]);
-                //puts("\nfirst Half");
+                RX_LowerHalf(&recordBuffer_L[0], &recordBuffer_R[0], BUFFER_SIZE / 2);
                 ProcessBuffer(&recordBuffer_L[0], &process);
-                if (process.work == 1) {
-                    // Check if yes or no, write to struct
-                    process.YesNo = YesNo(audioProcessBuffer);
-                    printf("signal status: %d\n", process.YesNo);
-                    process.work = 0;
-                }
 
-                TX_LowerHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
+#ifdef DEBUG
+                TX_LowerHalf(&recordBuffer_L[0], &recordBuffer_R[0], BUFFER_SIZE / 2);
+#endif
                 bufferStatus = BUFFER_STATUS_IDLE;
                 break;
             }
             case BUFFER_STATUS_UPPER_HALF_FULL: {
-                RX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
-
-                //do processing here
-                //puts("\nsecond Half");
+                RX_UpperHalf(&recordBuffer_L[0], &recordBuffer_R[0], BUFFER_SIZE / 2);
                 ProcessBuffer(&recordBuffer_L[0], &process);
 
-                TX_UpperHalf(&recordBuffer_L[0],&recordBuffer_R[0], BUFFER_SIZE / 2);
+#ifdef DEBUG
+                TX_UpperHalf(&recordBuffer_L[0], &recordBuffer_R[0], BUFFER_SIZE / 2);
+#endif
                 bufferStatus = BUFFER_STATUS_IDLE;
                 break;
             }
@@ -220,6 +187,8 @@ int main(void) {
     }
     /* USER CODE END 3 */
 }
+
+
 
 /**
   * @brief System Clock Configuration
@@ -273,115 +242,121 @@ void SystemClock_Config(void) {
 
 /* USER CODE BEGIN 4 */
 
-static float32_t tmp_m[BUFFER_SIZE/2] = {0};
+static float32_t tmp_m[BUFFER_SIZE / 2] = {0};
+static float32_t HP = 0.0f;
+static float32_t LP = 0.0f;
 
 // Main function for processing the buffer
-void ProcessBuffer(int16_t* S, Process *P){
+void ProcessBuffer(int16_t *S, Process *P) {
+    //uint32_t start = HAL_GetTick();
     // allocate temporary results buffer, make sure to fill buffer with zeros.
+    envelope(S, tmp_m);
 
-
-    envelope(S,tmp_m);
-    if (P->buff_pos > (PROCESS_BUFFER_SIZE)) {
-        puts("Buffer overrun");
-        P->buff_pos = 0;
-        return;
-    }
-    uint32_t start = HAL_GetTick();
+    //Check if process has init
     if (!P->init) {
         //puts("in zero");
-        if (tmp_m[0] != 0) {
 
+        // Check if the threshold is greater than zero
+        if (tmp_m[0] != 0) {
+            // iterate through the buffer to check whether any value exceeds threshold
             for (int i = 0; i < (BUFFER_SIZE / 2); i++) {
                 //printf("%f\n",tmp_m[i]);
+                //Check threshold
                 if (tmp_m[i] > THRESHOLD) {
+                    //if greater, set init to true
                     P->init = true;
                     puts("start");
-                    //Error_Handler();
-                    for (int d = 0; d < (BUFFER_SIZE / 2); d++) {
-                        audioProcessBuffer[P->buff_pos] = S[d];
-                        P->buff_pos++;
-                    }
+                    YesNo(&S[0], &HP, &LP, P);
                     break;
                 }
             }
         }
-    }
-    else {//if(P->init){
+    } else {
         puts("end");
         for (uint32_t i = 0; i < (BUFFER_SIZE / 2); i++) {
             if (tmp_m[i] < THRESHOLD) {
                 puts("reached threshold for end");
-//                    //copy final part of buffer
-//                for (int d = 0; d < (BUFFER_SIZE / 2); d++) {
-//                    audioProcessBuffer[P->buff_pos] = S[d];
-//                    P->buff_pos++;
-//                }
+
                 P->buff_pos = 0;
                 P->work = 1;
                 P->init = false;
                 break;
             }
-            audioProcessBuffer[P->buff_pos] = S[i];
-            P->buff_pos++;
         }
-
+        // Check if yes or no, write to struct
+        YesNo(&S[0], &HP, &LP, P);
+        //printf("signal status: %d\n", P->YesNo);
     }
     uint32_t end = HAL_GetTick();
 
-
-    //printf("Elapsed Time for switch: %lu", (end - start));
+    //printf("Elapsed Time for process: %lu", (end - start));
 }
 
-#define AUDIO_BLOCK_SIZE 5513
-
 //Create buffer for temporary float
-float tmpBuffer[BUFFER_SIZE] = {0};
+float tmpBuffer[BUFFER_SIZE / 2] = {0};
 
+/**
+  * @brief  Detects yes or no from signal.
+  * @param  *buffer: input samples address
+  * @param  *HP: High Pass value address
+  * @param  *LP: Low Pass value address
+  * @param  *P: Process structure address
+  */
+void YesNo(int16_t *buffer, float32_t *HP, float32_t *LP, Process *P) {
 //Create filter buffer
-float32_t filter_buffer[AUDIO_BLOCK_SIZE];
-
-uint8_t YesNo(int16_t* buffer){
-
+    float32_t filter_buffer[BUFFER_SIZE / 2];
 
     // copy data to float buffer
-    for (uint32_t i =0;i < (BUFFER_SIZE);i++){
-        tmpBuffer[i] = (float)buffer[i];
+    for (uint32_t i = 0; i < (BUFFER_SIZE / 2); i++) {
+        tmpBuffer[i] = (float) buffer[i];
     }
-
-
 
 //    //HP filter the signal
     arm_biquad_cascade_df2T_f32(
             &highPass,
-            tmpBuffer,
+            tmpBuffer,//(float*)buffer,
             filter_buffer,
-            BUFFER_SIZE);
+            BUFFER_SIZE / 2);
 
-    float32_t HP = 0;
-    for (int i=0;i<(BUFFER_SIZE);i++){
-        HP = (filter_buffer[i] * filter_buffer[i]) + HP;
+    for (uint32_t i = 0; i < (BUFFER_SIZE / 2); i++) {
+        // Sum and square sample values
+        *HP = (filter_buffer[i] * filter_buffer[i]) + *HP;
     }
-    //memset(filter_buffer, 0, sizeof(float32_t) * (BUFFER_SIZE));
-//
-//    // LP filter the signal
-//    arm_biquad_cascade_df2T_f32(&lowPass,tmpBuffer,filter_buffer,(PROCESS_BUFFER_SIZE));
-//    float32_t LP = 0;
-//    for (int i=0;i<(PROCESS_BUFFER_SIZE);i++){
-//        LP = (filter_buffer[i] * filter_buffer[i]) + LP;
-//    }
-//
-//    //calculate ratio
-//    float32_t ratio = HP/LP;
-//
-//    if (ratio >= CUTOFF){
-//        if (ratio <= YESMAX) return 1; // return yes
-//        else return 2; // return error
-//    } else {
-//        if (ratio >= NOMIN) return 0; //return no
-//        else return 2; //return error
-//    }
-    return 2;
+    memset(filter_buffer, 0, (sizeof(float32_t) * (BUFFER_SIZE / 2)));
+
+    // LP filter the signal
+    arm_biquad_cascade_df2T_f32(
+            &lowPass,
+            tmpBuffer,//(float*)buffer,
+            filter_buffer,
+            (BUFFER_SIZE / 2));
+
+    for (uint32_t i = 0; i < (BUFFER_SIZE / 2); i++) {
+        *LP = (filter_buffer[i] * filter_buffer[i]) + *LP;
+    }
+
+    // Do this once the recording has ended which is when envelope declares end of sample
+    if (P->work == 1) {
+        //calculate ratio
+        float32_t ratio = *HP / *LP;
+        P->work = 0;
+
+        //Reset HP and LP to zero
+        *HP = 0.0f;
+        *LP = 0.0f;
+
+        if (ratio >= CUTOFF) {
+            if (ratio <= YESMAX) P->YesNo = YES; // return yes
+            else P->YesNo = ERR; // return error
+        } else {
+            if (ratio >= NOMIN) P->YesNo = NO; //return no
+            else P->YesNo = ERR; //return error
+        }
+        P->change_flag = 1;
+    }
 }
+
+
 
 
 //These functions must be included as DMA callback
